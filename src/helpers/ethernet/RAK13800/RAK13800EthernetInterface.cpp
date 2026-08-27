@@ -156,6 +156,40 @@ void RAK13800EthernetInterface::disable() {
 }
 
 void RAK13800EthernetInterface::serviceConnections() {
+  // Retire dead sockets before accepting replacements. In particular, drop
+  // queued responses for a disconnected slot before that numeric slot can be
+  // reused by a different TCP peer; otherwise an old response could leak to a
+  // newly-connected client that happened to inherit the same slot number.
+  bool any = false;
+  for (uint8_t i = 0; i < MAX_ETH_CLIENTS; i++) {
+    if (clients[i].connected()) {
+      any = true;
+      continue;
+    }
+
+    if (_response_owner == (int8_t)i) {
+      _response_owner = -1;
+      if (!_stream_response) {
+        _release_after_flush = false;
+        _response_activity = 0;
+      }
+    }
+
+    for (uint8_t q = 0; q < send_queue_len; ) {
+      if (send_queue[q].target == (int8_t)i) {
+        send_queue_len--;
+        for (uint8_t move = q; move < send_queue_len; move++) {
+          send_queue[move] = send_queue[move + 1];
+        }
+      } else {
+        q++;
+      }
+    }
+
+    clients[i].stop();
+    resetRxState(i);
+  }
+
   EthernetClient newClient = server.accept();
   if (newClient) {
     int slot = -1;
@@ -170,6 +204,7 @@ void RAK13800EthernetInterface::serviceConnections() {
       clients[slot].stop();
       clients[slot] = newClient;
       resetRxState((uint8_t)slot);
+      any = true;
       IPAddress remoteIp = clients[slot].remoteIP();
       ETHERNET_DEBUG_PRINTLN(
           "New client accepted in slot %d: %u.%u.%u.%u:%u",
@@ -181,27 +216,6 @@ void RAK13800EthernetInterface::serviceConnections() {
     }
   }
 
-  bool any = false;
-  for (uint8_t i = 0; i < MAX_ETH_CLIENTS; i++) {
-    if (clients[i].connected()) {
-      any = true;
-      continue;
-    }
-
-    // If the response owner disappears during a long response, keep the
-    // stream lock until its END marker is generated, but discard those frames.
-    // This prevents a partial response from leaking to a different client.
-    if (_response_owner == (int8_t)i) {
-      _response_owner = -1;
-      if (!_stream_response) {
-        _release_after_flush = false;
-        _response_activity = 0;
-      }
-    }
-
-    clients[i].stop();
-    resetRxState(i);
-  }
   _connected = any;
 }
 
