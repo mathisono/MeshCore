@@ -32,10 +32,13 @@ jobs:
           # nRF52
           - RAK_4631_companion_radio_ble
           - RAK_4631_companion_radio_ethernet
+          - RAK_4631_companion_radio_ethernet_poe
           - RAK_4631_repeater
           - RAK_4631_repeater_ethernet
+          - RAK_4631_repeater_ethernet_poe
           - RAK_4631_room_server
           - RAK_4631_room_server_ethernet
+          - RAK_4631_room_server_ethernet_poe
           # RP2040
           - PicoW_repeater
           # STM32

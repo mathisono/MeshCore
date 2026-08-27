@@ -256,11 +256,16 @@ void loop() {
   external_watchdog.loop();
 #endif
 
+  // The RAK19018 PoE converter relies on the active W5100S + MCU load to stay
+  // latched. Entering nRF52 sleep can drop below its hold-current threshold and
+  // restart a batteryless RAK10720, so explicit PoE builds remain awake.
+#ifndef WITH_W5100S_POE
   if (!the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
 #endif
   }
+#endif
 
 #if defined(ESP32) && defined(WIFI_SSID)
   // Safely attempt to reconnect every 10 seconds if flagged
